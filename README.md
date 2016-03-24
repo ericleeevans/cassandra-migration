@@ -6,7 +6,7 @@ For example, if some releases of your software package include a CQL script to m
 
 ## Usage
 
-This package depends on the [Asset Migration Utilities for Scala](https://github.com/ericleeevans/migration). To use it, you will need to add _both dependencies to your project. E.g.:
+This package depends on the [Asset Migration Utilities for Scala](https://github.com/ericleeevans/migration). To use it, you will need to add _both_ dependencies to your project. E.g.:
 
 ~~~
 "org.elevans" % "migration" % "0.1.0"
@@ -35,12 +35,16 @@ You can instantiate an instance of `CqlMigrator` with the following:
  
 * The scope (e.g., "com.fooble.bar.data.users") of Cassandra objects manipulated by these CQL scripts.
  
-* The name of the "origin state" state that this scope is in before any CQL script is ever executed (i.e., before any of its Cassandra schema and data is created). E.g., if you use release numbers for the various states, you might specify "0.0.0" for the origin state; but you could use any String that would notbe a typical release name, e.g., "Null".
+* The name of the "origin state" state that this scope is in before any CQL script is ever executed (i.e., before any of its Cassandra schema and data is created). E.g., if you use release numbers for the various states, you might specify "0.0.0" for the origin state; but you could use any String that would not be a typical release name, e.g., "Null".
  
-* A `ResourceTransitionFinder` instance that can find and open your CQL scripts. See the "Finding Transition Metadata" section of the [Asset Migration Utilities for Scala](https://github.com/ericleeevans/migration), which provides convenient tools to find your CQL scripts in the filesystem, as JAR resource files, or as OSGi bundle resource files.
-                                    
+* A `ResourceTransitionFinder` instance that can find and open your CQL scripts. See the "Finding Transition Metadata" section of the [Asset Migration Utilities for Scala](https://github.com/ericleeevans/migration). That package provides convenient tools to find your scripts as files on the filesystem, or as resource files in your JAR, or even as resource files in your OSGi bundle.
 
-By default, the specified scope's "current state tracking data" will be stored in Cassandra, in the Session's keyspace - i.e., in the same keyspace as all of its other data. 
+
+### Persisting the "Current State" of your Cassandra Database Scope
+
+In order to migrate its Cassandra database "scope" to a target state, a `CqlMigrator` needs to know which state that scope is currently in (i.e., what release level it is at). Then when it is done migrating that scope to the target state, it needs to store that state somewhere so that some future release can also determine the scope's starting state for migration.
+
+By default, `CqlMigrator` will store its specified scope's current state tracking data in Cassandra, in the Session's keyspace - i.e., in the same keyspace as all of its other data. 
 The common case is to accept this default, and to make sure that none of your CQL scripts attempt to switch the Session's keyspace via the 'USE' statement.
 
 An _optional_ `alternateCurrentStateKeySpace` name may be given to specify a _different_ keyspace where the scope's current state tracking data should be stored, if for some reason you do not want this data stored in the Session's keyspace (for example, if some of your CQL scripts _do_ switch the Session's keyspace via 'USE' statements).
@@ -52,7 +56,7 @@ The `CassandraSchema` trait provides a level of convenience above the `CqlMigrat
 An implementation instance of `CassandraSchema` (typically a Scala `object`) represents a group of related Cassandra objects that must be migrated together, to get to a specified target state (i.e., the state required by the current release).
 You just need to provide concrete values for the abstract members noted below, and then your implementation of `CassandraSchema` will provide methods to execute the migration automatically.
 
-* The scope name (same as that for `CqlMigrator`; e.g., "com.fooble.bar.data.users").
+* The "scope" name (same as that for `CqlMigrator`; e.g., "com.fooble.bar.data.users").
 
 * The current "required state" - i.e., the state of the scope's Cassandra schema and data required by the current release of your software package.
 
@@ -78,8 +82,9 @@ object UsersCassandraSchema extends CassandraSchema {
 }
 ~~~
 
-This package's JAR file also contains all of the CQL scripts ever written to migrate the Cassandra schema and data for a given release of "com.fooble.bar" to the next release.
+The software package's JAR file also contains all of the CQL scripts ever written to migrate the scope's Cassandra schema and data for a given release of "com.fooble.bar" to the next release.
 These CQL scripts are in the "resources" directory "com/fooble/bar/data/users/cql_scripts".
+
 Each CQL script contains CQL comments that specify the before and after states for that script, and whether the changes made by that script are "destructive" (i.e., irreversible). 
 These comments use the terms "state-before", "state-after", and "is-destructive" for those pieces of information, and use a colon (':') as the name/value separator. 
 
@@ -106,7 +111,8 @@ ALTER TABLE users
   [... and so on...]
 ~~~
 
-By providing these CQL scripts as well as the `UsersCassandraSchema` object, the 1.6.0 release of "com.fooble.bar" could provide code (i.e., in a "migrate" script, or at initialization, or etc.) that automatically executes the required migration. 
+By providing these CQL scripts as well as the `UsersCassandraSchema` object, the 1.6.0 release of the "com.fooble.bar" package could include Scala code that automatically performs the required migration.
+This code could be executed from a "migrate" script, or during initialization, or etc.
 
 For example:
 
